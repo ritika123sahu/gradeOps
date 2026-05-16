@@ -9,7 +9,7 @@ interface LoginProps {
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('ta'); // For navigation only
+  const [role, setRole] = useState('ta');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 

@@ -4,7 +4,6 @@ from transformers import Qwen2VLForConditionalGeneration, AutoProcessor, TextStr
 from qwen_vl_utils import process_vision_info
 from PIL import Image
 
-# Allow processing of large images from high-res scans
 Image.MAX_IMAGE_PIXELS = None
 
 
@@ -15,7 +14,6 @@ class QwenVLModel:
 
         self.processor = AutoProcessor.from_pretrained(model_id)
 
-        # float16 is generally very stable on MPS
         print(f"Loading model {model_id}...")
         self.model = Qwen2VLForConditionalGeneration.from_pretrained(
             model_id,
@@ -30,11 +28,9 @@ class QwenVLModel:
         prompt: str = "Transcribe the handwritten text in this image accurately. If there is no text, say 'No text detected'."
     ) -> str:
         start_time = time.time()
-        # Load image using PIL to ensure compatibility
         try:
             image = Image.open(image_path).convert("RGB")
             
-            # Reduce size further to speed up inference on MPS
             max_size = 896
             if max(image.size) > max_size:
                 image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
@@ -44,7 +40,6 @@ class QwenVLModel:
             print(f"Error loading image {image_path}: {e}")
             raise RuntimeError(f"Could not load image at {image_path}: {e}")
 
-        # Qwen2-VL standard message structure
         messages = [
             {
                 "role": "user",
@@ -55,7 +50,6 @@ class QwenVLModel:
             }
         ]
 
-        # Preparation for inference
         text = self.processor.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
@@ -69,7 +63,6 @@ class QwenVLModel:
             return_tensors="pt",
         ).to(self.device)
 
-        # Inference with streamer to show progress
         print(f"Starting OCR inference for {image_path}...")
         streamer = TextStreamer(self.processor.tokenizer, skip_prompt=True, skip_special_tokens=True)
         inf_start = time.time()
@@ -83,7 +76,6 @@ class QwenVLModel:
             )
         print(f"\nInference completed in {time.time() - inf_start:.2f}s")
 
-        # Trim the prompt tokens out of the generated response
         generated_ids_trimmed = [
             out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
