@@ -63,14 +63,12 @@ const TADashboard: React.FC = () => {
   const handleSaveOverride = useCallback(async () => {
     if (!currentAnswer) return;
     
-    // Update local state first for instant feedback
     const updatedAnswers = [...answers];
     updatedAnswers[currentIndex].status = 'overridden';
     updatedAnswers[currentIndex].ta_grade = editedGrade;
     setAnswers(updatedAnswers);
     setIsEditing(false);
     
-    // In a real app, you'd call a specific /override endpoint here
     console.log(`Saved override for ${currentAnswer.id}: ${editedGrade}`);
     nextAnswer();
   }, [currentAnswer, answers, currentIndex, editedGrade]);
@@ -147,7 +145,7 @@ const TADashboard: React.FC = () => {
         <img 
             src={imageUrl} 
             alt="Student Answer" 
-            key={imageUrl} // Force re-render when image changes
+            key={imageUrl}
             onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 target.src = "https://via.placeholder.com/600x800?text=Scan+Processing...";

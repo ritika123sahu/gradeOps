@@ -25,12 +25,12 @@ const InstructorUpload: React.FC = () => {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: formData // Note: FastAPI expects file in body, other params can be query or form
+        body: formData 
       });
 
       if (response.ok) {
         alert("Exam uploaded successfully! AI pipeline started.");
-        navigate('/ta'); // Go check the results
+        navigate('/ta'); 
       } else {
         const err = await response.json();
         alert(`Upload failed: ${err.detail || 'Unknown error'}`);
