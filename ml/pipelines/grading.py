@@ -3,7 +3,6 @@ from langgraph.graph import StateGraph, END
 import json
 import re
 
-# Define the state of our grading agent
 
 
 class GradingState(TypedDict):
