@@ -17,6 +17,9 @@ from jose import jwt, JWTError
 from app.core.security import SECRET_KEY, ALGORITHM
 from fastapi.staticfiles import StaticFiles
 
+
+# Runs during FastAPI startup to initialize database tables
+# and create default Instructor and TA accounts if they don't already exist
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
