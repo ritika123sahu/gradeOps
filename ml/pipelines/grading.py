@@ -1,8 +1,11 @@
 from typing import TypedDict, List, Optional
 from langgraph.graph import StateGraph, END
 import json
+import re
 
 # Define the state of our grading agent
+
+
 class GradingState(TypedDict):
     image_path: str
     rubric: dict
@@ -11,6 +14,7 @@ class GradingState(TypedDict):
     justification: Optional[str]
     plagiarism_flag: bool
     error: Optional[str]
+
 
 class GradingPipeline:
     def __init__(self, vlm_model):
@@ -25,18 +29,57 @@ class GradingPipeline:
             return {"error": f"OCR Failed: {str(e)}"}
 
     def grading_node(self, state: GradingState):
-        if state.get("error"): return state
-        
-        # Mocking LLM grading logic (In production, use LangChain with GPT-4o or Qwen-2)
-        transcription = state["transcription"]
+        if state.get("error"):
+            return {}
+
+        transcription = state.get("transcription")
+        if not transcription or transcription.startswith("Error:"):
+            return {"error": "Invalid or empty transcription, skipping grading"}
+
         rubric = state["rubric"]
-        
-        # Logic: Compare transcription to sample_answer in rubric
-        # This is a stub for the prompt-based grading
-        grade = rubric.get("max_marks", 10) * 0.8 # Mock 80% score
-        justification = f"The student correctly identified the core concepts of {rubric.get('question', 'the question')} but missed minor details."
-        
-        return {"grade": grade, "justification": justification}
+        question = rubric.get("question", "N/A")
+        sample_answer = rubric.get("sample_answer", "N/A")
+        max_marks = rubric.get("max_marks", 10)
+
+        grading_prompt = f"""
+You are an expert exam evaluator. Compare the Student Answer to the Expected Answer and provide a fair grade.
+
+QUESTION:
+{question}
+
+EXPECTED ANSWER:
+{sample_answer}
+
+STUDENT ANSWER:
+{transcription}
+
+TASK:
+1. Grade the answer out of {max_marks}
+2. Give short justification
+3. Mention missing concepts if any
+
+OUTPUT FORMAT:
+Grade: <number>
+Justification: <text>
+Missing Concepts: <text>
+"""
+        try:
+            result = self.vlm.chat(grading_prompt)
+            print(
+                f"\n--- GRADING OUTPUT ---\n{result}\n----------------------\n")
+
+            grade_match = re.search(
+                r"Grade:\s*(\d+\.?\d*)", result, re.IGNORECASE)
+            justification_match = re.search(
+                r"Justification:\s*(.*)", result, re.IGNORECASE)
+
+            return {
+                "grade": float(grade_match.group(1)) if grade_match else 0.0,
+                "justification": justification_match.group(1).strip() if justification_match else result.strip()
+            }
+
+        except Exception as e:
+            return {"error": f"Grading Failed: {str(e)}"}
 
     def plagiarism_node(self, state: GradingState):
         # Stub for plagiarism check (In production, compare embeddings against vector store)
@@ -44,16 +87,16 @@ class GradingPipeline:
 
     def _create_workflow(self):
         workflow = StateGraph(GradingState)
-        
+
         workflow.add_node("ocr", self.ocr_node)
         workflow.add_node("grade", self.grading_node)
         workflow.add_node("plagiarism", self.plagiarism_node)
-        
+
         workflow.set_entry_point("ocr")
         workflow.add_edge("ocr", "grade")
         workflow.add_edge("grade", "plagiarism")
         workflow.add_edge("plagiarism", END)
-        
+
         return workflow.compile()
 
     async def run(self, image_path: str, rubric: dict):

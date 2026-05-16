@@ -24,7 +24,7 @@ class Token(BaseModel):
 
 class ExamCreate(BaseModel):
     title: str
-    rubric_json: List[Any]
+    rubric_json: Any
 
 class ExamResponse(ExamCreate):
     id: int

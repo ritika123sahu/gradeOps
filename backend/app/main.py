@@ -30,8 +30,13 @@ async def lifespan(app: FastAPI):
         await db.commit()
     yield
 
+# Define absolute path for data directory
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+
 app = FastAPI(title="GradeOps API", lifespan=lifespan)
-app.mount("/data", StaticFiles(directory="data"), name="data")
+app.mount("/data", StaticFiles(directory=DATA_DIR), name="data")
 
 @app.get("/")
 async def root():
@@ -75,14 +80,15 @@ async def upload_exam(
     if current_user.role != UserRole.INSTRUCTOR:
         raise HTTPException(status_code=403)
     
-    upload_dir = os.path.join("data", "uploads")
+    upload_dir = os.path.join(DATA_DIR, "uploads")
     os.makedirs(upload_dir, exist_ok=True)
     file_path = os.path.join(upload_dir, file.filename)
     with open(file_path, "wb") as buffer:
         buffer.write(await file.read())
     
     # Split PDF into images (One image = One Student)
-    image_paths = split_pdf_to_images(file_path, os.path.join("data", "crops"))
+    crops_dir = os.path.join(DATA_DIR, "crops")
+    image_paths = split_pdf_to_images(file_path, crops_dir)
     
     cleaned_rubric = rubric.replace('\n', ' ').replace('\r', '').replace('\t', ' ')
     rubric_obj = json.loads(cleaned_rubric)
@@ -91,31 +97,30 @@ async def upload_exam(
     db.add(exam)
     await db.commit()
     await db.refresh(exam)
+
+    from ml.models.vlm import QwenVLModel
+    from ml.pipelines.grading import GradingPipeline
+
+    qwen_model = QwenVLModel()
+    grading_pipeline = GradingPipeline(qwen_model)
     
     # Process each student page
     for i, img_path in enumerate(image_paths):
-        # SIMULATED INTELLIGENT GRADING LOGIC
-        # This replaces the hardcoded mock with logic that actually reads the rubric
-        max_marks = 10
-        transcription = "Student wrote: Stack is LIFO, Queue is FIFO. Push/Pop vs Enqueue/Dequeue."
-        
-        # If this is the "Wrong" demo answer
-        if i == 1: # Second page/student
-            transcription = "Student wrote: Stack is FIFO, Queue is LIFO."
-            grade = 2.0
-            justification = "Major error: Swapped LIFO and FIFO definitions. Significant marks deducted."
-        else:
-            grade = 9.5
-            justification = "Excellent answer. Correctly identified LIFO/FIFO and standard operations."
+        result = await grading_pipeline.run(img_path, rubric_obj)
+
+        grade_text = result.get("grade")
+        justification = result.get("justification")
+        transcription = result.get("transcription")
+        error = result.get("error")
 
         ans = StudentAnswer(
             exam_id=exam.id,
             student_id=f"STUDENT_{i+1:03d}",
             question_id="Q1",
             image_path=img_path,
-            transcribed_text=transcription,
-            ai_grade=grade,
-            ai_justification=justification,
+            transcribed_text=transcription if transcription else "",
+            ai_grade=float(grade_text) if grade_text is not None else 0.0,
+            ai_justification=justification if justification else (f"Grading error: {error}" if error else "No justification provided."),
             status="pending"
         )
         db.add(ans)
