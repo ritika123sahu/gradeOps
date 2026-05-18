@@ -56,3 +56,9 @@ The system automates the transition from physical exam papers to graded digital 
 - **AI Frameworks**: Transformers, LangGraph, PyTorch (MPS)
 - **Web**: FastAPI, React, Vite
 - **Storage**: PostgreSQL, SQLAlchemy (Async)
+
+## Demo video
+
+
+https://github.com/user-attachments/assets/423564c3-cc22-45e2-8c38-ef598debd9df
+
